@@ -1,9 +1,7 @@
 import { expect } from 'chai';
 import Component from 'inferno-component';
-import createElement from 'inferno-create-element';
-import Inferno from 'inferno';
-
-const render = Inferno.render;
+import Inferno, { render } from 'inferno';
+Inferno;
 
 /* These must be in their own files for test to reproduce */
 import { ParentFirstCommon } from '../../../testdata/common-render/parentfirstcommon';
@@ -213,6 +211,15 @@ describe('Components (JSX) #2', () => {
 			expect(container.innerHTML).to.equal('<div><div>Firstbar</div></div>');
 			render(<ParentSecondCommon />, container);
 			expect(container.innerHTML).to.equal('<div><div>Secondfoo</div></div>');
+		});
+	});
+
+	// Ref: https://github.com/trueadm/inferno/issues/513
+	describe('String components (React compat)', () => {
+		it('Should render a string div', () => {
+			const Div = 'div';
+			render(<Div>Hello World</Div>, container);
+			expect(container.innerHTML).to.equal('<div>Hello World</div>');
 		});
 	});
 });

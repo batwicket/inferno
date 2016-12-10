@@ -1,9 +1,11 @@
-import { expect } from 'chai';
+import Inferno, { render } from 'inferno';
+
 import { assert, spy } from 'sinon';
-import { render } from '../rendering';
+
+import createElement from 'inferno-create-element';
 import { innerHTML } from '../../tools/utils';
-import createElement from '../../factories/createElement';
-import * as Inferno from '../../testUtils/inferno';
+import { expect } from 'chai';
+
 Inferno; // suppress ts 'never used' error
 
 describe('Elements (JSX)', () => {
@@ -468,12 +470,8 @@ describe('Elements (JSX)', () => {
 		expect(container.firstChild.className).to.eql('');
 
 		render(<div className="Inferno rocks!"/>, container);
-		expect(container.firstChild.getAttribute('class')).to.eql('Inferno rocks!');
-		expect(
-			container.innerHTML
-		).to.equal(
-			innerHTML('<div class="Inferno rocks!"></div>')
-		);
+		expect(container.firstChild.className).to.eql('Inferno rocks!');
+		expect(container.firstChild.innerHTML).to.equal('');
 	});
 
 	it('shouldn\'t render null value', () => {
@@ -755,15 +753,15 @@ describe('Elements (JSX)', () => {
 		render((
 			<div { ...foo } { ...bar } />
 		), container);
-		expect(container.innerHTML).to.equal('<div class="lol" id="test">Hello world!</div>');
+		expect(container.innerHTML).to.equal(innerHTML('<div class="lol" id="test">Hello world!</div>'));
 	});
 
 	it('mixing JSX with non-JSX', () => {
-		render(<div>{createElement('div')}</div>, container);
+		render(<div>{createElement('div', null)}</div>, container);
 		expect(container.innerHTML).to.equal('<div><div></div></div>');
-		render(<div>{createElement('span')}</div>, container);
+		render(<div>{createElement('span', null)}</div>, container);
 		expect(container.innerHTML).to.equal('<div><span></span></div>');
-		render(<span>{createElement('div')}</span>, container);
+		render(<span>{createElement('div', null)}</span>, container);
 		expect(container.innerHTML).to.equal('<span><div></div></span>');
 	});
 

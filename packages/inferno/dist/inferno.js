@@ -1,5 +1,5 @@
 /*!
- * inferno v1.0.0-beta32
+ * inferno v1.0.0-beta33
  * (c) 2016 Dominic Gannaway
  * Released under the MIT License.
  */
@@ -233,12 +233,37 @@ function normalizeProps(vNode, props, children) {
         vNode.key = props.key;
     }
 }
+function normalizeElement(type, vNode) {
+    if (type === 'svg') {
+        vNode.flags = 128 /* SvgElement */;
+    }
+    else if (type === 'input') {
+        vNode.flags = 512 /* InputElement */;
+    }
+    else if (type === 'select') {
+        vNode.flags = 2048 /* SelectElement */;
+    }
+    else if (type === 'textarea') {
+        vNode.flags = 1024 /* TextareaElement */;
+    }
+    else if (type === 'media') {
+        vNode.flags = 256 /* MediaElement */;
+    }
+    else {
+        vNode.flags = 2 /* HtmlElement */;
+    }
+}
 function normalize(vNode) {
     var props = vNode.props;
+    var type = vNode.type;
     var children = vNode.children;
     // convert a wrongly created type back to element
-    if (isString(vNode.type) && (vNode.flags & 28 /* Component */)) {
-        vNode.flags = 3970 /* Element */;
+    if (isString(type) && (vNode.flags & 28 /* Component */)) {
+        normalizeElement(type, vNode);
+        if (props.children) {
+            vNode.children = props.children;
+            children = props.children;
+        }
     }
     if (props) {
         normalizeProps(vNode, props, children);
@@ -369,7 +394,7 @@ constructDefaults('xlink:href,xlink:arcrole,xlink:actuate,xlink:role,xlink:title
 constructDefaults('xml:base,xml:lang,xml:space', namespaces, xmlNS);
 constructDefaults('volume,defaultValue,defaultChecked', strictProps, true);
 constructDefaults('children,ref,key,selected,checked,value,multiple', skipProps, true);
-constructDefaults('onClick,onMouseDown,onMouseUp,onMouseMove', delegatedProps, true);
+constructDefaults('onClick,onMouseDown,onMouseUp,onMouseMove,onSubmit,onDblClick,onKeyDown,onKeyUp,onKeyPress', delegatedProps, true);
 constructDefaults('muted,scoped,loop,open,checked,default,capture,disabled,readonly,required,autoplay,controls,seamless,reversed,allowfullscreen,novalidate', booleanProps, true);
 constructDefaults('animationIterationCount,borderImageOutset,borderImageSlice,borderImageWidth,boxFlex,boxFlexGroup,boxOrdinalGroup,columnCount,flex,flexGrow,flexPositive,flexShrink,flexNegative,flexOrder,gridRow,gridColumn,fontWeight,lineClamp,lineHeight,opacity,order,orphans,tabSize,widows,zIndex,zoom,fillOpacity,floodOpacity,stopOpacity,strokeDasharray,strokeDashoffset,strokeMiterlimit,strokeOpacity,strokeWidth,', isUnitlessNumber, true);
 
@@ -461,7 +486,13 @@ function onTextInputChange(e) {
     var events = vNode.events || EMPTY_OBJ;
     var dom = vNode.dom;
     if (events.onInput) {
-        events.onInput(e);
+        var event = events.onInput;
+        if (event.event) {
+            event.event(event.data, e);
+        }
+        else {
+            event(e);
+        }
     }
     else if (events.oninput) {
         events.oninput(e);
@@ -955,6 +986,11 @@ function patchComponent(lastVNode, nextVNode, parentDom, lifecycle, context, isS
     var nextProps = nextVNode.props || EMPTY_OBJ;
     var lastKey = lastVNode.key;
     var nextKey = nextVNode.key;
+    var defaultProps = nextType.defaultProps;
+    if (!isUndefined(defaultProps)) {
+        copyPropsTo(defaultProps, nextProps);
+        nextVNode.props = nextProps;
+    }
     if (lastType !== nextType) {
         if (isClass) {
             replaceWithNewNode(lastVNode, nextVNode, parentDom, lifecycle, context, isSVG, isRecycling);
@@ -983,18 +1019,13 @@ function patchComponent(lastVNode, nextVNode, parentDom, lifecycle, context, isS
                 replaceChild(parentDom, mountComponent(nextVNode, null, lifecycle, context, isSVG, nextVNode.flags & 4 /* ComponentClass */), lastVNode.dom);
             }
             else {
-                var defaultProps = nextType.defaultProps;
-                var lastProps = instance.props;
                 if (instance._devToolsStatus.connected && !instance._devToolsId) {
                     componentIdMap.set(instance._devToolsId = getIncrementalId(), instance);
                 }
                 lifecycle.fastUnmount = false;
-                if (!isUndefined(defaultProps)) {
-                    copyPropsTo(lastProps, nextProps);
-                    nextVNode.props = nextProps;
-                }
                 var lastState = instance.state;
                 var nextState = instance.state;
+                var lastProps = instance.props;
                 var childContext = instance.getChildContext();
                 nextVNode.children = instance;
                 instance._isSVG = isSVG;
@@ -1472,11 +1503,11 @@ function patchProp(prop, lastValue, nextValue, dom, isSVG, lifecycle) {
             dom[prop] = value;
         }
     }
-    else if (isAttrAnEvent(prop)) {
-        patchEvent(prop, lastValue, nextValue, dom, lifecycle);
-    }
     else if (lastValue !== nextValue) {
-        if (isNullOrUndef(nextValue)) {
+        if (isAttrAnEvent(prop)) {
+            patchEvent(prop, lastValue, nextValue, dom, lifecycle);
+        }
+        else if (isNullOrUndef(nextValue)) {
             dom.removeAttribute(prop);
         }
         else if (prop === 'className') {
@@ -1542,6 +1573,12 @@ function patchEvent(name, lastValue, nextValue, dom, lifecycle) {
             handleEvent(name, lastValue, nextValue, dom);
         }
         else {
+            if (!isFunction(nextValue) && !isNullOrUndef(nextValue)) {
+                if (process.env.NODE_ENV !== 'production') {
+                    throwError(("an event on a VNode \"" + name + "\". was not a function. Did you try and apply an eventLink to an unsupported event?"));
+                }
+                throwError();
+            }
             dom[nameLowerCase] = nextValue;
         }
     }
@@ -1555,7 +1592,7 @@ function patchProps(lastProps, nextProps, dom, lifecycle, context, isSVG) {
             var nextValue = nextProps[prop];
             var lastValue = lastProps[prop];
             if (isNullOrUndef(nextValue)) {
-                removeProp(prop, dom);
+                removeProp(prop, nextValue, dom);
             }
             else {
                 patchProp(prop, lastValue, nextValue, dom, isSVG, lifecycle);
@@ -1566,7 +1603,7 @@ function patchProps(lastProps, nextProps, dom, lifecycle, context, isSVG) {
         for (var prop$1 in lastProps) {
             // do not add a hasOwnProperty check here, it affects performance
             if (isNullOrUndef(nextProps[prop$1])) {
-                removeProp(prop$1, dom);
+                removeProp(prop$1, lastProps[prop$1], dom);
             }
         }
     }
@@ -1596,7 +1633,7 @@ function patchStyle(lastAttrValue, nextAttrValue, dom) {
         }
     }
 }
-function removeProp(prop, dom) {
+function removeProp(prop, lastValue, dom) {
     if (prop === 'className') {
         dom.removeAttribute('class');
     }
@@ -1607,8 +1644,8 @@ function removeProp(prop, dom) {
         dom.style.cssText = null;
         dom.removeAttribute('style');
     }
-    else if (delegatedProps[prop]) {
-        handleEvent(prop, null, null, dom);
+    else if (isAttrAnEvent(prop)) {
+        handleEvent(name, lastValue, null, dom);
     }
     else {
         dom.removeAttribute(prop);
@@ -1830,15 +1867,15 @@ function mountComponent(vNode, parentDom, lifecycle, context, isSVG, isClass) {
     }
     var type = vNode.type;
     var props = vNode.props || EMPTY_OBJ;
+    var defaultProps = type.defaultProps;
     var ref = vNode.ref;
     var dom;
+    if (!isUndefined(defaultProps)) {
+        copyPropsTo(defaultProps, props);
+        vNode.props = props;
+    }
     if (isClass) {
-        var defaultProps = type.defaultProps;
         lifecycle.fastUnmount = false;
-        if (!isUndefined(defaultProps)) {
-            copyPropsTo(defaultProps, props);
-            vNode.props = props;
-        }
         var instance = createStatefulComponentInstance(vNode, type, props, context, isSVG, devToolsStatus);
         var input = instance._lastInput;
         var fastUnmount = lifecycle.fastUnmount;
@@ -2346,6 +2383,7 @@ if (isBrowser) {
 }
 
 if (process.env.NODE_ENV !== 'production') {
+	Object.freeze(EMPTY_OBJ);
 	var testFunc = function testFn() {};
 	warning(
 		(testFunc.name || testFunc.toString()).indexOf('testFn') !== -1,

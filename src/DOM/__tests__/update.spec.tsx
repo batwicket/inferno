@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { assert, spy } from 'sinon';
-import { render } from '../rendering';
-import Component from '../../component/es2015';
-import * as Inferno from '../../testUtils/inferno';
+import Component from 'inferno-component';
+import { innerHTML } from '../../tools/utils';
+import Inferno, { render } from 'inferno';
 Inferno; // suppress ts 'never used' error
 
 describe('Stateful Component updates', () => {
@@ -65,7 +65,7 @@ describe('Stateful Component updates', () => {
 		sinonSpy.restore();
 
 		// delayed update triggers for A
-		expect(() => updatesAfromOutside()).to.throw();
+		updatesAfromOutside();
 		expect(container.innerHTML).to.equal('<div>B Component B</div>');
 
 		done();
@@ -557,7 +557,7 @@ describe('Stateful Component updates', () => {
 		}
 
 		render(<Tester/>, container);
-		expect(container.innerHTML).to.eql('<form><input type="text" id="inputId"></form>');
+		expect(container.innerHTML).to.eql(innerHTML('<form><input type="text" id="inputId"></form>'));
 		const input = container.querySelector('#inputId');
 		expect(assert.notCalled(submitSpy));
 		input.focus();
